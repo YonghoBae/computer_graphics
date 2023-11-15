@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>ThreeJS</title>
+
+        <style>
+            body {
+                margin: 0;
+                overflow: hidden;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="webgl-output"></div>
+        <script type="module">
+            import * as THREE from 'https://unpkg.com/three@0.126.0/build/three.module.js';
+            import dat from 'https://cdn.jsdelivr.net/npm/dat.gui@0.7.9/build/dat.gui.module.js';
+            import { GLTFLoader } from 'https://unpkg.com/three@0.126.0/examples/jsm/loaders/GLTFLoader.js';
+            import { OrbitControls } from 'https://unpkg.com/three@0.126.0/examples/jsm/controls/OrbitControls.js';
+            
+            function main() {    
+                const renderer = new THREE.WebGLRenderer();
+                renderer.setClearColor(new THREE.Color(0x000000));
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.shadowMap.enabled = true;
+
+                // default 값
+                const fov = 65;
+                const aspect = 2;  // the canvas default
+                const near = 0.1;
+                const far = 200;
+
+                // 카메라 변수 선언 및 위치 설정
+                const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+                camera.position.set(0, 10, 20);
+
+                class MinMaxGUIHelper {     // near 속성과 far 속성을 제어해줄 class
+                    constructor(obj, minProp, maxProp, minDif) {
+                        this.obj = obj;
+                        this.minProp = minProp;
+                        this.maxProp = maxProp;
+                        this.minDif = minDif;
+                    }
+                    get min() {
+                        return this.obj[this.minProp];
+                    }
+                    set min(v) {
+                        this.obj[this.minProp] = v;
+                        this.obj[this.maxProp] = Math.max(this.obj[this.maxProp], v + this.minDif);
+                    }
+                    get max() {
+                        return this.obj[this.maxProp];
+                    }
+                    set max(v) {
+                        this.obj[this.maxProp] = v;
+                        this.min = this.min;  // this will call the min setter
+                    }
+                }
+
+                function updateCamera() {       // 카메라 투영 매트릭스를 업데이트
+                    camera.updateProjectionMatrix();
+                }
+
+                // 카메라의 속성을 변경할 때마다 업데이트
+                const gui = new dat.GUI();
+                gui.add(camera, 'fov', 1, 180).onChange(updateCamera);
+                const minMaxGUIHelper = new MinMaxGUIHelper(camera, 'near', 'far', 0.1);
+                gui.add(minMaxGUIHelper, 'min', 0.1, 50, 0.1).name('near').onChange(updateCamera);
+                gui.add(minMaxGUIHelper, 'max', 0.1, 200, 0.1).name('far').onChange(updateCamera);
+
+                const controls = new OrbitControls(camera, renderer.domElement);
+                controls.target.set(0, 5, 0);
+                controls.update();
+
+                const scene = new THREE.Scene();
+                scene.background = new THREE.Color('black');    // 배경
+
+                const axes = new THREE.AxesHelper(20);
+                scene.add(axes);
+
+                // 밑의 바둑판 모양의 판
+                const planeSize = 80;
+
+                const loader = new THREE.TextureLoader();
+                const texture = loader.load('image/floor.jpg');
+                texture.wrapS = THREE.RepeatWrapping;       // 랩핑 모드 -> texture를 무한으로 반복
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.magFilter = THREE.NearestFilter;        // 특정 텍스처 좌표와 가장 가까운 텍스쳐 요소의 값 리턴
+                const repeats = planeSize / 40;
+                texture.repeat.set(repeats, repeats);
+
+                //바닥
+                const planeGeo = new THREE.PlaneGeometry(planeSize, planeSize);
+                const palneMat = new THREE.MeshPhongMaterial({map: texture, side: THREE.DoubleSide,});
+                const wallMat = new THREE.MeshPhongMaterial({color: 0xBEBBB1});
+                const floor = new THREE.Mesh(planeGeo, palneMat);
+                floor.rotation.x = Math.PI * -.5;
+                scene.add(floor);
+                
+                //벽
+                const wallSize = planeSize/2;
+                const wallGeo = new THREE.BoxGeometry(planeSize, wallSize);
+
+                const wall1 = new THREE.Mesh(wallGeo, wallMat);
+                wall1.position.set(0,wallSize/2,planeSize/2);
+                scene.add(wall1);
+
+                const wall2 = new THREE.Mesh(wallGeo, wallMat);
+                wall2.rotation.y = Math.PI;
+                wall2.position.set(0,wallSize/2,-planeSize/2);
+                scene.add(wall2);
+
+                const wall3 = new THREE.Mesh(wallGeo, wallMat);
+                wall3.rotation.y = Math.PI*0.5; 
+                wall3.position.set(-planeSize/2,wallSize/2,0);
+                scene.add(wall3);
+
+                const wallmGeo = new THREE.BoxGeometry(wallSize,wallSize    );
+                const wallm = new THREE.Mesh(wallmGeo,wallMat);
+                wallm.position.set(-wallSize/2,wallSize/2,0)
+                scene.add(wallm);
+                
+                const gltfLoader = new GLTFLoader();
+                gltfLoader.load('desk_low-poly/scene.gltf', (gltf) => {
+                    const model = gltf.scene;
+                    model.scale.set(0.03, 0.03, 0.03);
+                    model.rotation.y = Math.PI*0.5;
+                    model.position.set(-27, 0, -4); // 필요한 경우 모델의 위치를 조정하세요.
+                    scene.add(model);
+                })
+
+                const gltfLoader2 = new GLTFLoader();
+                gltfLoader2.load('single_bed/scene.gltf', (gltf) => {
+                    const model = gltf.scene;
+                    model.scale.set(400, 400, 400);
+                    model.position.set(-27, 0, -33); // 필요한 경우 모델의 위치를 조정하세요.
+                    scene.add(model);
+                })
+
+                const gltfLoader3 = new GLTFLoader();
+                gltfLoader3.load('closet/scene.gltf', (gltf) => {
+                    const model = gltf.scene;
+                    model.scale.set(8, 8, 8);
+                    model.rotation.y = Math.PI*-0.5;
+                    model.position.set(0, 0, -39); // 필요한 경우 모델의 위치를 조정하세요.
+                    scene.add(model);
+                })
+
+                //빛
+                const color = 0xFFFFFF;
+                const intensity = 1;
+                const light = new THREE.AmbientLight(color, intensity);
+                light.position.set(0, 10, 0);
+                scene.add(light);
+
+                const plight = new THREE.PointLight( 0xffffff, 1, 100 );
+                light.position.set( 50, 50, 50 );
+                scene.add( plight );
+
+                // const rectLight = new THREE.RectAreaLight( 0xff0000, 1,  2, 2);
+                // rectLight.position.set( 10, 10, 10);
+                // rectLight.lookAt( 0, 0, 0 );
+                // scene.add( rectLight );
+
+                // const hlight = new THREE.HemisphereLight(0xffbb00, 0x00ff00, 0.1);
+                // scene.add(hlight);
+
+                function resizeRendererToDisplaySize(renderer) {
+                    const canvas = renderer.domElement;
+                    const width = canvas.clientWidth;
+                    const height = canvas.clientHeight;
+                    const needResize = canvas.width !== width || canvas.height !== height;
+                    if (needResize) {
+                        renderer.setSize(width, height, false);
+                    }
+                    return needResize;
+                }
+                
+                document.getElementById("webgl-output").appendChild(renderer.domElement);
+                render();
+
+                function render() {
+                    if (resizeRendererToDisplaySize(renderer)) {
+                        camera.updateProjectionMatrix();
+                    }
+                    renderer.render(scene, camera);
+                    requestAnimationFrame(render);
+                }
+                requestAnimationFrame(render);
+            }
+
+            main();
+</script>
+</body>
+</html>
